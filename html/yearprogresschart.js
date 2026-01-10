@@ -32,72 +32,128 @@ try {
 }
 console.log(yearProgressTotals);
 
-// Create the line chart displaying yearProgressTotals.
-// Make the line for the current year red, and make it so that it is visible on top of the other lines
-// Remove the circles for the individual data points
-// Make each year's line a distinct color. Make the current year's line black.
-const allPeriods = new Set();
-yearProgressTotals.forEach(yearData => {
-  yearData.Totals.forEach(item => allPeriods.add(item.Period));
-});
-const labels = Array.from(allPeriods).sort();
+// Store the original data for filtering
+const originalData = [...yearProgressTotals];
 
-// Determine the current year
-const currentYear = new Date().getFullYear();
-
-// Generate a distinct color for each year, and make the current year's line double the thickness
-function getColor(index, isCurrent) {
-  if (isCurrent) return 'rgba(0, 0, 0, 1)'; // Black for current year
-  // Generate HSL colors for distinction
-  const hue = (index * 60) % 360;
-  return `hsl(${hue}, 70%, 50%)`;
+// Create the buttons container if it doesn't exist
+let buttonsContainer = document.getElementById('chart-buttons');
+if (!buttonsContainer) {
+  buttonsContainer = document.createElement('div');
+  buttonsContainer.id = 'chart-buttons';
+  buttonsContainer.style.marginBottom = '10px';
+  buttonsContainer.style.textAlign = 'center';
+  canvas.parentNode.insertBefore(buttonsContainer, canvas);
 }
 
-let datasets = yearProgressTotals.map((yearData, idx) => ({
-  label: yearData.Year,
-  data: yearData.Totals.map(item => item.TotalMM),
-  borderColor: getColor(idx, yearData.Year === currentYear),
-  borderWidth: yearData.Year === currentYear ? 4 : 3, // Double thickness for current year
-  // backgroundColor: 'rgba(237, 240, 243, 0.2)',
-  backgroundColor: 'rgba(255, 255, 255, 0.0)',
-  fill: true,
-  tension: 0.4, // Smooth the line
-  pointRadius: 0, // Remove circles for data points
-}));
+// Add the filter button
+const filterButton = document.createElement('button');
+filterButton.textContent = 'Show Last 10 Years';
+filterButton.style.marginRight = '10px';
+filterButton.style.padding = '5px 10px';
+filterButton.style.cursor = 'pointer';
 
-// Move the current year's dataset to the end of the array so it appears on top
-datasets = datasets.sort((a, b) => (a.label === currentYear ? 1 : b.label === currentYear ? -1 : 0));
+// Add the reset button
+const resetButton = document.createElement('button');
+resetButton.textContent = 'Show All Years';
+resetButton.style.padding = '5px 10px';
+resetButton.style.cursor = 'pointer';
 
-const data = {
-  labels: labels,
-  datasets: datasets,
-};
+// Add buttons to container
+buttonsContainer.appendChild(filterButton);
+buttonsContainer.appendChild(resetButton);
 
-const ctx = canvas.getContext('2d');
-if (!ctx) {
-  console.error('Canvas context not found');
-  return;
-} else {
-  console.log('Canvas context successfully retrieved');
-}
+// Function to create/update the chart
+function createChart(filteredData) {
+  // Create the line chart displaying yearProgressTotals.
+  const allPeriods = new Set();
+  filteredData.forEach(yearData => {
+    yearData.Totals.forEach(item => allPeriods.add(item.Period));
+  });
+  const labels = Array.from(allPeriods).sort();
 
-window.yearProgressChart = new Chart(ctx, {
-  type: 'line',
-  data: data,
-  options: {
-    responsive: true,
-    plugins: {
-      title: {
-        display: true,
-        text: 'Year Progress Chart'
-      }
-    },
-    scales: {
-      y: {
-        beginAtZero: true
+  // Determine the current year
+  const currentYear = new Date().getFullYear();
+
+  // Generate a distinct color for each year, and make the current year's line double the thickness
+  function getColor(index, isCurrent) {
+    if (isCurrent) return 'rgba(0, 0, 0, 1)'; // Black for current year
+    // Generate HSL colors for distinction
+    const hue = (index * 60) % 360;
+    return `hsl(${hue}, 70%, 50%)`;
+  }
+
+  let datasets = filteredData.map((yearData, idx) => ({
+    label: yearData.Year,
+    data: yearData.Totals.map(item => item.TotalMM),
+    borderColor: getColor(idx, yearData.Year === currentYear),
+    borderWidth: yearData.Year === currentYear ? 4 : 3, // Double thickness for current year
+    backgroundColor: 'rgba(255, 255, 255, 0.0)',
+    fill: true,
+    tension: 0.4, // Smooth the line
+    pointRadius: 0, // Remove circles for data points
+  }));
+
+  // Move the current year's dataset to the end of the array so it appears on top
+  datasets = datasets.sort((a, b) => (a.label === currentYear ? 1 : b.label === currentYear ? -1 : 0));
+
+  const data = {
+    labels: labels,
+    datasets: datasets,
+  };
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    console.error('Canvas context not found');
+    return;
+  }
+
+  // Destroy existing chart if it exists
+  if (window.yearProgressChart) {
+    window.yearProgressChart.destroy();
+  }
+
+  window.yearProgressChart = new Chart(ctx, {
+    type: 'line',
+    data: data,
+    options: {
+      responsive: true,
+      plugins: {
+        title: {
+          display: true,
+          text: 'Year Progress Chart'
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true
+        }
       }
     }
-  }
+  });
+}
+
+// Initial chart creation
+createChart(yearProgressTotals);
+
+// Add filter functionality
+filterButton.addEventListener('click', function() {
+  const currentYear = new Date().getFullYear();
+  const lastTenYears = currentYear - 9; // 10 years inclusive
+  const filteredData = originalData.filter(yearData => yearData.Year >= lastTenYears);
+  
+  createChart(filteredData);
+  filterButton.disabled = true;
+  resetButton.disabled = false;
 });
+
+// Add reset functionality
+resetButton.addEventListener('click', function() {
+  createChart(originalData);
+  filterButton.disabled = false;
+  resetButton.disabled = true;
+});
+
+// Initially disable the reset button
+resetButton.disabled = true;
 
 });

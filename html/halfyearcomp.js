@@ -81,36 +81,48 @@ canvas.parentNode.insertBefore(selector, canvas);
 
 // Chart rendering function
 function renderChart(filteredTotals) {
-    const filteredLabels = filteredTotals.map(item => item.Period);
-    const filteredData = filteredTotals.map(item => item.TotalMM);
-    const filteredBackgroundColors = filteredLabels.map(label =>
-        last4Periods.has(label) ? 'red' : '#3a6ea5'
-    );
-
-    if (window.quarterChart) {
-        window.quarterChart.destroy();
+  const filteredLabels = filteredTotals.map(item => item.Period);
+  const filteredData = filteredTotals.map(item => item.TotalMM);
+  
+  // Get current half-year
+  const now = new Date();
+  const currentHalfYear = `${now.getFullYear()}-H${Math.floor(now.getMonth() / 6) + 1}`;
+  
+  // Modify background colors - current half-year is dark yellow, recent ones are red
+  const filteredBackgroundColors = filteredLabels.map(label => {
+    if (label === currentHalfYear) {
+      return '#FFD600'; // Dark yellow for current half-year
+    } else if (last4Periods.has(label)) {
+      return 'red'; // Red for other recent periods
+    } else {
+      return '#3a6ea5'; // Blue for older periods
     }
-    window.quarterChart = new Chart(ctx, {
-        type: 'bar',
-        data: {
-            labels: filteredLabels,
-            datasets: [
-                {
-                    label: 'Total',
-                    data: filteredData,
-                    backgroundColor: filteredBackgroundColors,
-                    borderWidth: 1
-                }
-            ]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: { position: 'top' },
-                title: { display: true, text: 'Half-Year Totals Comparison' }
-            }
+  });
+
+  if (window.quarterChart) {
+    window.quarterChart.destroy();
+  }
+  window.quarterChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: filteredLabels,
+      datasets: [
+        {
+          label: 'Total',
+          data: filteredData,
+          backgroundColor: filteredBackgroundColors,
+          borderWidth: 1
         }
-    });
+      ]
+    },
+    options: {
+      responsive: true,
+      plugins: {
+        legend: { position: 'top' },
+        title: { display: true, text: 'Half-Year Totals Comparison' }
+      }
+    }
+  });
 }
 
 // Initial render
