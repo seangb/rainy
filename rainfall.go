@@ -98,21 +98,42 @@ func readJSONFile(filename string) (*RainfallData, error) {
 }
 
 func StartHandler(w http.ResponseWriter, r *http.Request) {
-	// Read and parse the JSON data
+	// Read the JSON file to get all years (including those with no rainfall)
+	jsonData, err := os.ReadFile(dataFile)
+	if err != nil {
+		http.Error(w, "Failed to read data file", http.StatusInternalServerError)
+		return
+	}
+
+	// Parse JSON to get all years
+	var yearData map[string][]struct {
+		Date       string  `json:"date"`
+		RainfallMM float64 `json:"rainfall_mm"`
+	}
+	if err := json.Unmarshal(jsonData, &yearData); err != nil {
+		http.Error(w, "Failed to parse JSON", http.StatusInternalServerError)
+		return
+	}
+
+	// Read and parse the rainfall data
 	rainfallData, _ = readJSONFile(dataFile)
 	// Print summary
 	fmt.Printf("Loaded %d rainfall records\n", len(rainfallData.Records))
 
 	// Get the set of yearly rainfall totals
 	yearlyTotals := make(map[string]float64)
+
+	// Initialize all years from the JSON (including those with 0 rainfall)
+	for year := range yearData {
+		yearlyTotals[year] = 0.0
+	}
+
+	// Now sum up the actual rainfall for each year
 	for _, record := range rainfallData.Records {
 		year := strconv.Itoa(record.Date.Year())
-		if _, exists := yearlyTotals[year]; !exists {
-			yearlyTotals[year] = record.RainfallMM
-		} else {
-			yearlyTotals[year] += record.RainfallMM
-		}
+		yearlyTotals[year] += record.RainfallMM
 	}
+
 	// Convert the map to a slice for sorting
 	yearlyTotalsSlice := make([]LabelledNumber, 0, len(yearlyTotals))
 	for year, total := range yearlyTotals {
@@ -250,20 +271,61 @@ func MonthlyData(w http.ResponseWriter, r *http.Request) {
 func MonthVMonthHandler(w http.ResponseWriter, r *http.Request) {
 	// This handler gets the totals for every month (YYYY-MM) and sorts them from highest to lowest so they can be compared
 	fmt.Println("MonthVMonthHandler called")
+
+	// Read the JSON file to get all years (including those with no rainfall)
+	jsonData, err := os.ReadFile(dataFile)
+	if err != nil {
+		http.Error(w, "Failed to read data file", http.StatusInternalServerError)
+		return
+	}
+
+	// Parse JSON to get all years
+	var yearData map[string][]struct {
+		Date       string  `json:"date"`
+		RainfallMM float64 `json:"rainfall_mm"`
+	}
+	if err := json.Unmarshal(jsonData, &yearData); err != nil {
+		http.Error(w, "Failed to parse JSON", http.StatusInternalServerError)
+		return
+	}
+
 	// Read and parse the JSON data
 	if rainfallData == nil {
 		rainfallData, _ = readJSONFile(dataFile)
 	}
+
 	// Get the set of monthly rainfall totals
 	monthlyTotals := make(map[string]float64)
-	for _, record := range rainfallData.Records {
-		monthKey := record.Date.Format("2006-01") // Format as YYYY-MM
-		if _, exists := monthlyTotals[monthKey]; !exists {
-			monthlyTotals[monthKey] = record.RainfallMM
-		} else {
-			monthlyTotals[monthKey] += record.RainfallMM
+
+	// Get current year and month
+	now := time.Now()
+	currentYear := now.Year()
+	currentMonth := int(now.Month())
+
+	// Initialize all months from all years in the JSON (including those with 0 rainfall)
+	for year := range yearData {
+		yearInt, err := strconv.Atoi(year)
+		if err != nil {
+			continue
+		}
+		// Determine the last month to include for this year
+		lastMonth := 12
+		if yearInt == currentYear {
+			lastMonth = currentMonth
+		}
+		// Create entries for months up to the cutoff
+		for month := 1; month <= lastMonth; month++ {
+			monthKey := fmt.Sprintf("%04d-%02d", yearInt, month)
+			monthlyTotals[monthKey] = 0.0
 		}
 	}
+
+	// Now sum up the actual rainfall for each month
+	for _, record := range rainfallData.Records {
+		monthKey := record.Date.Format("2006-01") // Format as YYYY-MM
+		monthlyTotals[monthKey] += record.RainfallMM
+	}
+
 	// Convert the map to a slice for sorting
 	monthlyTotalsSlice := make([]LabelledNumber, 0, len(monthlyTotals))
 	for month, total := range monthlyTotals {
@@ -681,16 +743,41 @@ func HalfYearVHalfYearHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func YearCompHandler(w http.ResponseWriter, r *http.Request) {
+	// Read the JSON file to get all years (including those with no rainfall)
+	jsonData, err := os.ReadFile(dataFile)
+	if err != nil {
+		http.Error(w, "Failed to read data file", http.StatusInternalServerError)
+		return
+	}
+
+	// Parse JSON to get all years
+	var yearData map[string][]struct {
+		Date       string  `json:"date"`
+		RainfallMM float64 `json:"rainfall_mm"`
+	}
+	if err := json.Unmarshal(jsonData, &yearData); err != nil {
+		http.Error(w, "Failed to parse JSON", http.StatusInternalServerError)
+		return
+	}
+
 	// Read and parse the JSON data
 	if rainfallData == nil {
 		rainfallData, _ = readJSONFile(dataFile)
 	}
 	// Get the set of yearly rainfall totals
 	yearlyTotals := make(map[string]float64)
+
+	// Initialize all years from the JSON (including those with 0 rainfall)
+	for year := range yearData {
+		yearlyTotals[year] = 0.0
+	}
+
+	// Now sum up the actual rainfall for each year
 	for _, record := range rainfallData.Records {
 		year := strconv.Itoa(record.Date.Year())
 		yearlyTotals[year] += record.RainfallMM
 	}
+
 	// Convert the map to a slice for sorting
 	yearlyTotalsSlice := make([]LabelledNumber, 0, len(yearlyTotals))
 	for year, total := range yearlyTotals {
